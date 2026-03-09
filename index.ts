@@ -1,27 +1,27 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 
-export default async function (api: OpenClawPluginApi) {
+export default function (api: OpenClawPluginApi) {
 
   // ── 1. 注册 AI 工具 ──────────────────────────────────────
   api.registerTool({
     name: "get_weather",
     description: "获取天气",
     parameters: { type: "object", properties: { city: { type: "string" } } },
-    run: async ({ city }) => `${city} 今天晴天`,
+    run: ({ city }) => `${city} 今天晴天`,
   });
 
   // ── 2. 注册自定义命令（绕过 LLM）────────────────────────
   api.registerCommand({
     name: "ping",
     description: "健康检查",
-    handler: async (ctx) => ({ text: `pong from ${ctx.channel}` }),
+    handler: (ctx) => ({ text: `pong from ${ctx.channel}` }),
   });
 
   // ── 3. 注册 HTTP 路由（接收 Webhook）────────────────────
   api.registerHttpRoute({
     path: "/my-webhook",
     auth: "plugin",
-    handler: async (req, res) => {
+    handler: (req, res) => {
       res.writeHead(200);
       res.end("ok");
     },
@@ -30,38 +30,38 @@ export default async function (api: OpenClawPluginApi) {
   // ── 4. 注册后台服务 ──────────────────────────────────────
   api.registerService({
     id: "my-service",
-    start: async (ctx) => {
+    start: (ctx) => {
       ctx.logger.info("service started, stateDir=" + ctx.stateDir);
     },
-    stop: async () => {},
+    stop: () => {},
   });
 
   // ── 5. 监听 LLM 输出 Hook ────────────────────────────────
-  api.on("llm_output", async (event, ctx) => {
+  api.on("llm_output", (event, ctx) => {
     api.logger.info(`[${ctx.agentId}] tokens used: ${event.usage?.total}`);
   });
 
   // ── 6. 在发送消息前修改内容 ──────────────────────────────
-  api.on("message_sending", async (event) => {
+  api.on("message_sending", (event) => {
     if (event.content.includes("bad word")) {
       return { content: event.content.replace("bad word", "***") };
     }
   });
 
   // ── 7. 在工具调用前拦截 ──────────────────────────────────
-  api.on("before_tool_call", async (event) => {
+  api.on("before_tool_call", (event) => {
     if (event.toolName === "dangerous_tool") {
       return { block: true, blockReason: "该工具已被禁用" };
     }
   });
 
   // ── 8. 在 Prompt 构建前注入系统 Prompt ─────────────────
-  api.on("before_prompt_build", async (event, ctx) => {
+  api.on("before_prompt_build", (event, ctx) => {
     return { appendSystemContext: "请始终用中文回答。" };
   });
 
   // ── 9. 在模型解析前覆盖模型 ─────────────────────────────
-  api.on("before_model_resolve", async (event) => {
+  api.on("before_model_resolve", (event) => {
     if (event.prompt.includes("代码")) {
       return { modelOverride: "claude-3-5-sonnet" };
     }
@@ -72,7 +72,7 @@ export default async function (api: OpenClawPluginApi) {
     name: "send_long_text",
     description: "发送长文本（自动分段）",
     parameters: { type: "object", properties: { text: { type: "string" } } },
-    run: async ({ text }, toolCtx) => {
+    run: ({ text }, toolCtx) => {
       const limit = api.runtime.channel.text.resolveTextChunkLimit(
         api.config,
         toolCtx?.messageChannel ?? "telegram",
@@ -93,16 +93,21 @@ export default async function (api: OpenClawPluginApi) {
         task: { type: "string" },
       },
     },
-    run: async ({ agentSessionKey, task }) => {
-      const { runId } = await api.runtime.subagent.run({
-        sessionKey: agentSessionKey,
-        message: task,
-      });
-      const result = await api.runtime.subagent.waitForRun({
-        runId,
-        timeoutMs: 30_000,
-      });
-      return result.status === "ok" ? "子 Agent 完成" : `失败: ${result.error}`;
+    run: ({ agentSessionKey, task }) => {
+      return api.runtime.subagent
+        .run({
+          sessionKey: agentSessionKey,
+          message: task,
+        })
+        .then(({ runId }) =>
+          api.runtime.subagent.waitForRun({
+            runId,
+            timeoutMs: 30_000,
+          }),
+        )
+        .then((result) =>
+          result.status === "ok" ? "子 Agent 完成" : `失败: ${result.error}`,
+        );
     },
   });
 
@@ -111,9 +116,10 @@ export default async function (api: OpenClawPluginApi) {
     name: "fetch_image",
     description: "下载图片",
     parameters: { type: "object", properties: { url: { type: "string" } } },
-    run: async ({ url }) => {
-      const { buffer, contentType } = await api.runtime.channel.media.fetchRemoteMedia({ url });
-      return `下载完成，类型: ${contentType}，大小: ${buffer.length} bytes`;
+    run: ({ url }) => {
+      return api.runtime.channel.media.fetchRemoteMedia({ url }).then(({ buffer, contentType }) => {
+        return `下载完成，类型: ${contentType}，大小: ${buffer.length} bytes`;
+      });
     },
   });
 
