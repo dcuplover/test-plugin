@@ -1,0 +1,22 @@
+{
+  "id": "test-plugin",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "environment": {
+        "type": "string"
+      },
+      "greetingPrefix": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "environment",
+      "greetingPrefix"
+    ],
+    "additionalProperties": false
+  },
+  "name": "test-plugin",
+  "description": "OpenClaw plugin 测试代码",
+  "version": "0.1.0"
+}
