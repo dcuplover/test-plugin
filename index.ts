@@ -18,7 +18,12 @@ export default function (api) {
 
   api.on("before_prompt_build", async (event) => {
     api.logger.info("Agent 即将启动，事件数据：", event);
+
+    console.log(event);
+
     const agentId = event.sessionKey?.split(":")[1]
+
+    api.logger.info("agentId:", event.sessionKey?.split(":")[1], "full key:", event.sessionKey);
 
     if (agentId === "main") {
         return {
