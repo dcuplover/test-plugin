@@ -17,8 +17,11 @@ export default function (api) {
   });
 
   api.on("before_prompt_build", async (event, ctx) => {
-    api.logger.info("ctx keys:", JSON.stringify(Object.keys(ctx || {})));
-    api.logger.info("api.agentId:", api.agentId);
+    api.logger.info("ctx keys:", ctx);
+    api.logger.info("api.agentId:", api);
+
+    console.log(event);
+    console.log(ctx);
     
     // 尝试从 ctx 或 api 上获取 agentId
     const agentId = ctx?.agentId || api.agentId;
