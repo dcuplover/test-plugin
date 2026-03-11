@@ -21,6 +21,8 @@ export default function (api) {
 
     console.log(event);
 
+    api.logger.info("event keys:", Object.keys(event));
+
     const agentId = event.sessionKey?.split(":")[1]
 
     api.logger.info("agentId:", event.sessionKey?.split(":")[1], "full key:", event.sessionKey);
