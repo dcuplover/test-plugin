@@ -43,13 +43,19 @@ export default function (api) {
 
   // 添加斜杠命令hook
   api.registerHook(
-    "message:received",
-    async() => {
+    "command:new",
+    async(event: any) => {
         api.logger.info("如果看到我，说明斜杠命令hook生效了！");
+        api.logger.info("event:", event);
+        console.log(event);
+
+        event.messages.push([
+            "这是斜杠命令hook添加的一条消息！"
+        ]).join("\n");
     },
     {
-        name: "test-plugin.message",
-        description: "这是一个测试命令hook，当用户输入/new的时候会触发这个hook",
+        name: "test-plugin.command",
+        description: "Append self-improvement note before /new",
     }
   );
 }
