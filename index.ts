@@ -45,7 +45,7 @@ export default function (api) {
   api.registerHook(
     "command:new",
     async() => {
-        api.logger.info("用户输入了/new命令，触发了command:new的hook");
+        api.logger.info("如果看到我，说明斜杠命令hook生效了！");
     },
     {
         name: "test-plugin.command-new",
