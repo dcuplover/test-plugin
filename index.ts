@@ -16,14 +16,14 @@ export default function (api) {
     }
   });
 
-  api.on("before_prompt_build", async (event) => {
-    api.logger.info("Agent 即将启动，事件数据：", event);
-
-    console.log(event);
-
-    api.logger.info("event keys:", Object.keys(event));
-
-    const agentId = event.sessionKey?.split(":")[1]
+  api.on("before_prompt_build", async (event, ctx) => {
+    api.logger.info("ctx keys:", JSON.stringify(Object.keys(ctx || {})));
+    api.logger.info("api.agentId:", api.agentId);
+    
+    // 尝试从 ctx 或 api 上获取 agentId
+    const agentId = ctx?.agentId || api.agentId;
+    
+    api.logger.info("resolved agentId:", agentId);
 
     api.logger.info("agentId:", event.sessionKey?.split(":")[1], "full key:", event.sessionKey);
 
