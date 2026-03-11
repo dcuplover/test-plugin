@@ -48,10 +48,8 @@ export default function (api) {
         api.logger.info("如果看到我，说明斜杠命令hook生效了！");
         api.logger.info("event:", event);
         console.log(event);
-
-        event.messages.push([
-            "这是斜杠命令hook添加的一条消息！"
-        ]).join("\n");
+        
+        return event;
     },
     {
         name: "test-plugin.command",
