@@ -48,7 +48,7 @@ export default function (api) {
         api.logger.info("如果看到我，说明斜杠命令hook生效了！");
     },
     {
-        name: "test-plugin.command-new",
+        name: "test-plugin.message",
         description: "这是一个测试命令hook，当用户输入/new的时候会触发这个hook",
     }
   );
