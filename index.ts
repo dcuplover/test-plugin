@@ -43,7 +43,7 @@ export default function (api) {
 
   // 添加斜杠命令hook
   api.registerHook(
-    "command:new",
+    "message:received",
     async() => {
         api.logger.info("如果看到我，说明斜杠命令hook生效了！");
     },
