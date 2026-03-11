@@ -10,10 +10,9 @@ export default function (api) {
             city: { type: "string" } 
         } 
     },
-    handler: async ({ city }) => {
-        return {
-            result: `这是 ${city} 的天气：晴天，25度。`
-        };
+    execute: async (_id, params) => {
+        const { city } = params;
+        return { content: [{ type: "text", text: `这是 ${city} 的天气：晴天，25度。` }] };
     }
   });
 }
