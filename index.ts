@@ -1,13 +1,15 @@
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
-
-export default function (api: OpenClawPluginApi) {
+export default function (api) {
 
   // ── 1. 注册 AI 工具 ──────────────────────────────────────
   api.registerTool({
     name: "get_weather",
     description: "获取天气",
-    parameters: { type: "object", properties: { city: { type: "string" } } },
-    run: ({ city }) => `${city} 今天晴天`,
+    parameters: { 
+        type: "object", properties: { 
+            city: { type: "string" } 
+        } 
+    },
+    handler: ({ city }) => `${city} 今天晴天`,
   });
 
   // ── 2. 注册自定义命令（绕过 LLM）────────────────────────
