@@ -14,4 +14,8 @@ export default function (api) {
         return { content: [{ type: "text", text: `这是 ${city} 的天气：晴天，25度。` }] };
     }
   });
+
+  api.on("before_agent_start", async (event) => {
+    api.logger.info("Agent 即将启动，事件数据：", event);
+  });
 }
