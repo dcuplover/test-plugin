@@ -18,8 +18,16 @@ export default function (api) {
 
   api.on("before_agent_start", async (event) => {
     api.logger.info("Agent 即将启动，事件数据：", event);
-    return {
-        prependContext: "我将测试prompt添加到了Agent的上下文中。"
+    const agentId = event.sessionKey?.split(":")[1]
+
+    if (agentId === "main") {
+        return {
+            prependContext: "我将测试prompt添加到了Agent的上下文中。"
+        }
+    } else {
+        return {
+            prependContext: "这是一个子Agent，我没有添加任何上下文。"
+        }
     }
   });
 }
