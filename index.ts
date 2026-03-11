@@ -9,14 +9,16 @@ export default function (api) {
             city: { type: "string" } 
         } 
     },
-    handler: ({ city }) => `${city} 今天晴天`,
+    handler: async ({ city }) => {
+        return `${city} 今天晴天`;
+    }
   });
 
   // ── 2. 注册自定义命令（绕过 LLM）────────────────────────
   api.registerCommand({
     name: "ping",
     description: "健康检查",
-    handler: (ctx) => ({ text: `pong from ${ctx.channel}` }),
+    handler: async ({ctx}) => ({ text: `pong from ${ctx.channel}` }),
   });
 
   // ── 3. 注册 HTTP 路由（接收 Webhook）────────────────────
