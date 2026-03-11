@@ -42,7 +42,7 @@ export default function (api) {
   });
 
   // 添加斜杠命令hook
-  api.api.registerHook(
+  api.registerHook(
     "command:new",
     async() => {
         console.log("用户输入了/new命令，触发了command:new的hook");
