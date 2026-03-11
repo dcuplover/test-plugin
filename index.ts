@@ -45,10 +45,10 @@ export default function (api) {
   api.registerHook(
     "command:new",
     async() => {
-        console.log("用户输入了/new命令，触发了command:new的hook");
+        api.logger.info("用户输入了/new命令，触发了command:new的hook");
     },
     {
-        name: "test-plugin-new",
+        name: "test-plugin.command-new",
         description: "这是一个测试命令hook，当用户输入/new的时候会触发这个hook",
     }
   );
