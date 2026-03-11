@@ -16,7 +16,7 @@ export default function (api) {
     }
   });
 
-  api.on("before_agent_start", async (event) => {
+  api.on("before_prompt_build", async (event) => {
     api.logger.info("Agent 即将启动，事件数据：", event);
     const agentId = event.sessionKey?.split(":")[1]
 
