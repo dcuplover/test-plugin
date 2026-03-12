@@ -85,4 +85,15 @@ export default function (api) {
     }
   );
 
+  //注册一个后台服务，
+  api.registerService({
+    id: "my-service",
+    start: () => {
+        api.logger.info("我的服务启动了！");
+    },
+    stop: () => {
+        api.logger.info("我的服务停止了！");
+    },
+  });
+
 }
