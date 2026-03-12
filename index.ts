@@ -58,14 +58,30 @@ export default function (api) {
   );
 
   // 注册一个新的斜杠命令
-  api.registerCommand({
-    name: "test_command",
-    description: "这是一个测试命令",
-    async handler(ctx) {
-        console.log("测试命令被触发了！", ctx);
-        return {
-            text: "这是测试命令的响应！"
-        };
+  api.registerCommand(
+  {
+        name: "test_command",
+        description: "这是一个测试命令",
+        async handler(ctx) {
+            console.log("测试命令被触发了！", ctx);
+            return {
+                text: "这是测试命令的响应！"
+            };
+        },
+  });
+
+  // 注册一个cli工具
+  api.registerCli(
+    ({program}) => {
+        program.command("test-cli")
+            .description("这是一个测试CLI命令")
+            .action(() => {
+                console.log("测试CLI命令被执行了！");
+            });
     },
-});
+    {
+        commands: ["test-cli"],
+    }
+  );
+
 }
