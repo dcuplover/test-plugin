@@ -77,6 +77,7 @@ export default function (api) {
             .description("这是一个测试CLI命令")
             .action(() => {
                 console.log("测试CLI命令被执行了！");
+                console.log(program)
             });
     },
     {
