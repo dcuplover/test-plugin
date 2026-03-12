@@ -56,4 +56,16 @@ export default function (api) {
         description: "Append self-improvement note before /new",
     }
   );
+
+  // 注册一个新的斜杠命令
+  api.registerCommand({
+    name: "test_command",
+    description: "这是一个测试命令",
+    async handler(ctx) {
+        console.log("测试命令被触发了！", ctx);
+        return {
+            text: "这是测试命令的响应！"
+        };
+    },
+});
 }
