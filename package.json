@@ -6,9 +6,6 @@
   "dependencies": {
     "@lancedb/lancedb": "^0.22.1"
   },
-  "devDependencies": {
-    "openclaw": "workspace:*"
-  },
   "openclaw": {
     "extensions": ["./index.ts"]
   }
