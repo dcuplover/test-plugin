@@ -5,6 +5,15 @@ const DEFAULT_RESULT_LIMIT = 3;
 const DEFAULT_MIN_PROMPT_LENGTH = 5;
 const DEFAULT_MAX_FIELD_LENGTH = 240;
 const DEFAULT_SELECT_COLUMNS = ["id", "title", "content", "text", "summary", "source"];
+const DEFAULT_TEST_FTS_COLUMNS = ["title", "content", "summary"];
+
+type TestDocument = {
+    id: string;
+    title: string;
+    content: string;
+    summary: string;
+    source: string;
+};
 
 type PluginConfig = {
     lanceDbPath?: string;
@@ -30,6 +39,17 @@ type LanceDbTable = {
     };
 };
 
+type LanceDbWritableTable = LanceDbTable & {
+    add(data: LanceDbRow[]): Promise<unknown>;
+    createIndex(column: string, options?: Record<string, unknown>): Promise<void>;
+};
+
+type LanceDbConnection = {
+    tableNames(): Promise<string[]>;
+    openTable(name: string): Promise<LanceDbWritableTable>;
+    createTable(name: string, data: LanceDbRow[]): Promise<LanceDbWritableTable>;
+};
+
 type CachedTableState = {
     dbPath: string;
     tableName: string;
@@ -40,6 +60,98 @@ let cachedTableState: CachedTableState | undefined;
 
 function getPluginConfig(api: any): PluginConfig {
     return api.config?.plugins?.entries?.[PLUGIN_ID]?.config ?? {};
+}
+
+function getConfiguredDbTarget(api: any): { dbPath: string; tableName: string } | undefined {
+    const cfg = getPluginConfig(api);
+    const dbPath = cfg.lanceDbPath?.trim();
+    const tableName = cfg.tableName?.trim();
+
+    if (!dbPath || !tableName) {
+        return undefined;
+    }
+
+    return { dbPath, tableName };
+}
+
+function buildTestDocuments(): TestDocument[] {
+    const batchId = Date.now();
+
+    return [
+        {
+            id: `test-doc-${batchId}-1`,
+            title: "OpenClaw 插件测试文档",
+            content:
+                "这是写入 LanceDB 的第一条测试数据，用于验证 before_prompt_build 检索链路是否正常工作。",
+            summary: "用于测试插件检索上下文注入。",
+            source: "test_command",
+        },
+        {
+            id: `test-doc-${batchId}-2`,
+            title: "LanceDB 全文检索样例",
+            content:
+                "这条数据包含 LanceDB、全文检索、插件命令等关键词，便于验证 test-plugin 的 FTS 搜索效果。",
+            summary: "用于测试全文索引与搜索结果格式化。",
+            source: "test_command",
+        },
+        {
+            id: `test-doc-${batchId}-3`,
+            title: "测试命令自动建表",
+            content:
+                "如果目标表不存在，test_command 会自动创建数据表并写入测试记录，然后为配置列创建全文索引。",
+            summary: "用于测试表初始化与索引创建。",
+            source: "test_command",
+        },
+    ];
+}
+
+async function seedTestData(api: any): Promise<string> {
+    const target = getConfiguredDbTarget(api);
+
+    if (!target) {
+        return "未配置 lanceDbPath 或 tableName，请先在插件配置中填写 LanceDB 路径和表名。";
+    }
+
+    const cfg = getPluginConfig(api);
+    const documents = buildTestDocuments();
+    const ftsColumns = normalizeStringArray(cfg.ftsColumns) ?? DEFAULT_TEST_FTS_COLUMNS;
+
+    const db = (await lancedb.connect(target.dbPath)) as unknown as LanceDbConnection;
+    const tableNames = await db.tableNames();
+    const tableExists = tableNames.includes(target.tableName);
+
+    const table = tableExists
+        ? await db.openTable(target.tableName)
+        : await db.createTable(target.tableName, documents);
+
+    if (tableExists) {
+        await table.add(documents);
+    }
+
+    for (const column of ftsColumns) {
+        if (!(column in documents[0])) {
+            api.logger.warn(`跳过不存在的 FTS 列: ${column}`);
+            continue;
+        }
+
+        await table.createIndex(column, {
+            config: (lancedb as any).Index.fts(),
+            replace: true,
+        });
+    }
+
+    cachedTableState = {
+        dbPath: target.dbPath,
+        tableName: target.tableName,
+        table,
+    };
+
+    api.logger.info(
+        `LanceDB 测试数据写入完成: table=${target.tableName}, inserted=${documents.length}, created=${!tableExists}`,
+    );
+
+    const action = tableExists ? "已向现有表追加测试数据" : "已创建表并写入测试数据";
+    return `${action}：${target.tableName}。本次写入 ${documents.length} 条记录，并尝试为以下列创建全文索引：${ftsColumns.join(", ")}。`;
 }
 
 function normalizeStringArray(value: unknown): string[] | undefined {
@@ -209,9 +321,15 @@ export default function (api: any) {
         description: "这是一个测试命令",
         async handler(ctx: any) {
             console.log("测试命令被触发了！", ctx);
-            return {
-                text: "这是测试命令的响应！"
-            };
+
+            try {
+                const text = await seedTestData(api);
+                return { text };
+            } catch (error) {
+                const message = `写入 LanceDB 测试数据失败: ${String(error)}`;
+                api.logger.warn(message);
+                return { text: message };
+            }
         },
   });
 
