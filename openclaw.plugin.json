@@ -2,19 +2,43 @@
   "id": "test-plugin",
   "configSchema": {
     "type": "object",
+    "additionalProperties": false,
     "properties": {
-      "environment": {
+      "lanceDbPath": {
         "type": "string"
       },
-      "greetingPrefix": {
+      "tableName": {
         "type": "string"
+      },
+      "ftsColumns": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "selectColumns": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "resultLimit": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "minPromptLength": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "maxFieldLength": {
+        "type": "integer",
+        "minimum": 20
       }
     },
     "required": [
-      "environment",
-      "greetingPrefix"
-    ],
-    "additionalProperties": false
+      "lanceDbPath",
+      "tableName"
+    ]
   },
   "name": "test-plugin",
   "description": "OpenClaw plugin 测试代码",
