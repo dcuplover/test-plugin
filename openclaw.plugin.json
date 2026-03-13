@@ -33,6 +33,35 @@
       "maxFieldLength": {
         "type": "integer",
         "minimum": 20
+      },
+      "embedBaseUrl": {
+        "type": "string",
+        "description": "Embedding 服务的 base URL，例如 https://api.openai.com/v1"
+      },
+      "embedModel": {
+        "type": "string",
+        "description": "Embedding 模型名称，例如 text-embedding-3-small"
+      },
+      "embedApiKey": {
+        "type": "string",
+        "description": "Embedding 服务的 API Key"
+      },
+      "rerankBaseUrl": {
+        "type": "string",
+        "description": "Rerank 服务的 base URL，例如 https://api.cohere.com/v1"
+      },
+      "rerankModel": {
+        "type": "string",
+        "description": "Rerank 模型名称，例如 rerank-multilingual-v3.0"
+      },
+      "rerankApiKey": {
+        "type": "string",
+        "description": "Rerank 服务的 API Key"
+      },
+      "topK": {
+        "type": "integer",
+        "minimum": 1,
+        "description": "Rerank 前从向量库召回的候选数量，默认 10"
       }
     },
     "required": [

@@ -10,7 +10,7 @@ declare module "@lancedb/lancedb" {
 
   export type LanceDbTable = {
     search(
-      query: string,
+      query: string | number[] | Float32Array,
       queryType?: string,
       ftsColumns?: string[],
     ): {

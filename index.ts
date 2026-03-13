@@ -6,6 +6,7 @@ const DEFAULT_MIN_PROMPT_LENGTH = 5;
 const DEFAULT_MAX_FIELD_LENGTH = 240;
 const DEFAULT_SELECT_COLUMNS = ["id", "title", "content", "text", "summary", "source"];
 const DEFAULT_TEST_FTS_COLUMNS = ["title", "content", "summary"];
+const DEFAULT_TOP_K = 10;
 
 type TestDocument = {
     id: string;
@@ -23,13 +24,20 @@ type PluginConfig = {
     resultLimit?: number;
     minPromptLength?: number;
     maxFieldLength?: number;
+    embedBaseUrl?: string;
+    embedModel?: string;
+    embedApiKey?: string;
+    rerankBaseUrl?: string;
+    rerankModel?: string;
+    rerankApiKey?: string;
+    topK?: number;
 };
 
 type LanceDbRow = Record<string, unknown>;
 
 type LanceDbTable = {
     search(
-        query: string,
+        query: string | number[] | Float32Array,
         queryType?: string,
         ftsColumns?: string[],
     ): {
@@ -74,6 +82,71 @@ function getConfiguredDbTarget(api: any): { dbPath: string; tableName: string } 
     return { dbPath, tableName };
 }
 
+async function generateEmbedding(text: string, cfg: PluginConfig): Promise<number[]> {
+    const baseUrl = cfg.embedBaseUrl?.trim()?.replace(/\/$/, "");
+    const model = cfg.embedModel?.trim();
+    const apiKey = cfg.embedApiKey?.trim();
+
+    if (!baseUrl || !model) {
+        throw new Error("未配置 embedBaseUrl 或 embedModel，无法生成嵌入向量。");
+    }
+
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (apiKey) {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+    }
+
+    const response = await fetch(`${baseUrl}/embeddings`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ model, input: text }),
+    });
+
+    if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        throw new Error(`Embedding API 请求失败 (${response.status}): ${body}`);
+    }
+
+    const data = await response.json() as { data: Array<{ embedding: number[] }> };
+    return data.data[0].embedding;
+}
+
+async function rerankDocuments(
+    query: string,
+    documents: string[],
+    cfg: PluginConfig,
+    topN: number,
+): Promise<number[]> {
+    const baseUrl = cfg.rerankBaseUrl?.trim()?.replace(/\/$/, "");
+    const model = cfg.rerankModel?.trim();
+    const apiKey = cfg.rerankApiKey?.trim();
+
+    if (!baseUrl || !model) {
+        throw new Error("未配置 rerankBaseUrl 或 rerankModel，无法进行重排序。");
+    }
+
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (apiKey) {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+    }
+
+    const response = await fetch(`${baseUrl}/rerank`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ model, query, documents, top_n: topN }),
+    });
+
+    if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        throw new Error(`Rerank API 请求失败 (${response.status}): ${body}`);
+    }
+
+    const data = await response.json() as {
+        results: Array<{ index: number; relevance_score: number }>;
+    };
+    return data.results.map((r) => r.index);
+}
+
 function buildTestDocuments(): TestDocument[] {
     const batchId = Date.now();
 
@@ -115,6 +188,23 @@ async function seedTestData(api: any): Promise<string> {
     const cfg = getPluginConfig(api);
     const documents = buildTestDocuments();
     const ftsColumns = normalizeStringArray(cfg.ftsColumns) ?? DEFAULT_TEST_FTS_COLUMNS;
+    const hasEmbedding = !!(cfg.embedBaseUrl?.trim() && cfg.embedModel?.trim());
+
+    let docsToStore: LanceDbRow[];
+    if (hasEmbedding) {
+        docsToStore = await Promise.all(
+            documents.map(async (doc) => {
+                const embedText = [doc.title, doc.content, doc.summary]
+                    .filter(Boolean)
+                    .join(" ");
+                const vector = await generateEmbedding(embedText, cfg);
+                return { ...doc, vector };
+            }),
+        );
+        api.logger.info("嵌入向量生成完成，准备写入 LanceDB。");
+    } else {
+        docsToStore = documents;
+    }
 
     const db = (await lancedb.connect(target.dbPath)) as unknown as LanceDbConnection;
     const tableNames = await db.tableNames();
@@ -122,10 +212,10 @@ async function seedTestData(api: any): Promise<string> {
 
     const table = tableExists
         ? await db.openTable(target.tableName)
-        : await db.createTable(target.tableName, documents);
+        : await db.createTable(target.tableName, docsToStore);
 
     if (tableExists) {
-        await table.add(documents);
+        await table.add(docsToStore);
     }
 
     for (const column of ftsColumns) {
@@ -147,11 +237,12 @@ async function seedTestData(api: any): Promise<string> {
     };
 
     api.logger.info(
-        `LanceDB 测试数据写入完成: table=${target.tableName}, inserted=${documents.length}, created=${!tableExists}`,
+        `LanceDB 测试数据写入完成: table=${target.tableName}, inserted=${documents.length}, created=${!tableExists}, embedding=${hasEmbedding}`,
     );
 
     const action = tableExists ? "已向现有表追加测试数据" : "已创建表并写入测试数据";
-    return `${action}：${target.tableName}。本次写入 ${documents.length} 条记录，并尝试为以下列创建全文索引：${ftsColumns.join(", ")}。`;
+    const embeddingNote = hasEmbedding ? "，含嵌入向量字段" : "";
+    return `${action}：${target.tableName}。本次写入 ${documents.length} 条记录${embeddingNote}，并尝试为以下列创建全文索引：${ftsColumns.join(", ")}。`;
 }
 
 function normalizeStringArray(value: unknown): string[] | undefined {
@@ -247,18 +338,50 @@ async function queryLanceDb(api: any, prompt: string): Promise<string | undefine
     }
 
     const resultLimit = Math.max(cfg.resultLimit ?? DEFAULT_RESULT_LIMIT, 1);
-    const ftsColumns = normalizeStringArray(cfg.ftsColumns);
+    const hasEmbedding = !!(cfg.embedBaseUrl?.trim() && cfg.embedModel?.trim());
+    const hasRerank = !!(cfg.rerankBaseUrl?.trim() && cfg.rerankModel?.trim());
+    const topK = Math.max(cfg.topK ?? DEFAULT_TOP_K, resultLimit);
+    const fetchLimit = hasRerank ? topK : resultLimit;
 
     try {
         const table = await getTable(lanceDbPath, tableName);
-        const query = table.search(normalizedPrompt, "fts", ftsColumns);
-        const rows = await query.limit(resultLimit).toArray();
+        let rows: LanceDbRow[];
+
+        if (hasEmbedding) {
+            const vector = await generateEmbedding(normalizedPrompt, cfg);
+            rows = await table.search(vector).limit(fetchLimit).toArray();
+        } else {
+            const ftsColumns = normalizeStringArray(cfg.ftsColumns);
+            rows = await table.search(normalizedPrompt, "fts", ftsColumns).limit(fetchLimit).toArray();
+        }
+
+        if (!Array.isArray(rows)) {
+            rows = [];
+        }
+
+        if (hasRerank && rows.length > 1) {
+            const documents = rows.map((row) =>
+                ["title", "content", "summary"]
+                    .map((k) => (typeof row[k] === "string" ? (row[k] as string) : ""))
+                    .filter(Boolean)
+                    .join(" "),
+            );
+            try {
+                const rerankedIndices = await rerankDocuments(normalizedPrompt, documents, cfg, resultLimit);
+                rows = rerankedIndices.map((i) => rows[i]).filter(Boolean);
+            } catch (rerankError) {
+                api.logger.warn(`Rerank 失败，回退到原始排序: ${String(rerankError)}`);
+                rows = rows.slice(0, resultLimit);
+            }
+        } else {
+            rows = rows.slice(0, resultLimit);
+        }
 
         api.logger.info(
-            `LanceDB 检索完成: table=${tableName}, rows=${Array.isArray(rows) ? rows.length : 0}`,
+            `LanceDB 检索完成: table=${tableName}, rows=${rows.length}, embedding=${hasEmbedding}, rerank=${hasRerank}`,
         );
 
-        return formatSearchResults(Array.isArray(rows) ? rows : [], cfg);
+        return formatSearchResults(rows, cfg);
     } catch (error) {
         api.logger.warn(`LanceDB 检索失败: ${String(error)}`);
         return undefined;
