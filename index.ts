@@ -56,6 +56,7 @@ type LanceDbConnection = {
     tableNames(): Promise<string[]>;
     openTable(name: string): Promise<LanceDbWritableTable>;
     createTable(name: string, data: LanceDbRow[]): Promise<LanceDbWritableTable>;
+    dropTable(name: string): Promise<void>;
 };
 
 type CachedTableState = {
@@ -210,13 +211,12 @@ async function seedTestData(api: any): Promise<string> {
     const tableNames = await db.tableNames();
     const tableExists = tableNames.includes(target.tableName);
 
-    const table = tableExists
-        ? await db.openTable(target.tableName)
-        : await db.createTable(target.tableName, docsToStore);
-
     if (tableExists) {
-        await table.add(docsToStore);
+        await db.dropTable(target.tableName);
+        api.logger.info(`已删除旧表: ${target.tableName}`);
     }
+
+    const table = await db.createTable(target.tableName, docsToStore);
 
     for (const column of ftsColumns) {
         if (!(column in documents[0])) {
@@ -237,10 +237,10 @@ async function seedTestData(api: any): Promise<string> {
     };
 
     api.logger.info(
-        `LanceDB 测试数据写入完成: table=${target.tableName}, inserted=${documents.length}, created=${!tableExists}, embedding=${hasEmbedding}`,
+        `LanceDB 测试数据写入完成: table=${target.tableName}, inserted=${documents.length}, recreated=${tableExists}, embedding=${hasEmbedding}`,
     );
 
-    const action = tableExists ? "已向现有表追加测试数据" : "已创建表并写入测试数据";
+    const action = tableExists ? "已删除旧表并重新建表写入测试数据" : "已创建表并写入测试数据";
     const embeddingNote = hasEmbedding ? "，含嵌入向量字段" : "";
     return `${action}：${target.tableName}。本次写入 ${documents.length} 条记录${embeddingNote}，并尝试为以下列创建全文索引：${ftsColumns.join(", ")}。`;
 }
